@@ -125,32 +125,27 @@ class _WheelPickerState extends State<WheelPicker> {
   /// specified controller, and consequently, `itemCount` must not be null.
   ///
   /// Note that if a new controller is made, it also gets disposed within the widget's scope.
-  late final WheelPickerController _controller = widget.controller ??
-      WheelPickerController(
-        itemCount: widget.itemCount!,
-        initialIndex: widget.initialIndex ?? WheelPickerController._defaultInitialIndex,
-      );
+  WheelPickerController? _controller;
 
   /// Retrieves the range (item count) from the already initialized [_controller].
-  int _getRange() => _controller.itemCount;
+  int _getRange() => _controller?.itemCount ?? 0;
 
   /// Attaches the controller to the widget, configuring looping and shift animation style.
   @override
   void initState() {
+    // Initialize the controller based on the specified controller or create a new one.
+    _controller = widget.controller ??
+        WheelPickerController(
+          itemCount: widget.itemCount ?? 0,
+          initialIndex: widget.initialIndex ?? WheelPickerController._defaultInitialIndex,
+        );
+
     // Ensure itemCount is valid.
     assert(_getRange() > 0, "itemCount can't be less or equal to zero.");
 
     // Attach the controller and configures its behavior.
-    _controller._attach();
-    _controller._updateShiftAnimationStyle(widget.style.shiftAnimationStyle);
-
-    // If the initialIndex is greater than 0, set the current index after the first frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final initialIndex = widget.initialIndex ?? _controller.initialIndex;
-      if (initialIndex > 0) {
-        await _controller.shiftTo(initialIndex);
-      }
-    });
+    _controller?._attach();
+    _controller?._updateShiftAnimationStyle(widget.style.shiftAnimationStyle);
 
     super.initState();
   }
@@ -160,13 +155,25 @@ class _WheelPickerState extends State<WheelPicker> {
   /// This is to update properties changes with Hot-Reload without needing to Hot-Restart.
   @override
   void didUpdateWidget(covariant WheelPicker oldWidget) {
-    _controller._updateShiftAnimationStyle(widget.style.shiftAnimationStyle);
+    _controller?._updateShiftAnimationStyle(widget.style.shiftAnimationStyle);
 
-    // In the case the widget's itemCount property is given then update the internal controller's itemCount.
-    if (widget.itemCount != null && widget.itemCount != _controller.itemCount) {
-      _controller.itemCount = widget.itemCount!;
+    // If itemCount changes, update the controller's itemCount and reset its current to initialIndex.
+    final oldItemCount = _getRange();
+    final newItemCount = widget.controller?.itemCount ?? widget.itemCount ?? 0;
+
+    if (oldItemCount != newItemCount) {
+      _controller?.itemCount = newItemCount;
+
       // Also update the internal controller's current to its initialIndex.
-      _controller.setCurrent(_controller.initialIndex);
+      final initialIndex = widget.initialIndex ??
+          widget.initialIndex ??
+          widget.controller?.initialIndex ??
+          _controller?.initialIndex ??
+          WheelPickerController._defaultInitialIndex;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controller?.setCurrent(initialIndex);
+      });
     }
 
     super.didUpdateWidget(oldWidget);
@@ -176,7 +183,7 @@ class _WheelPickerState extends State<WheelPicker> {
   @override
   void dispose() {
     if (_controller != widget.controller) {
-      _controller.dispose();
+      _controller?.dispose();
     }
     super.dispose();
   }
@@ -205,8 +212,11 @@ class _WheelPickerState extends State<WheelPicker> {
   /// with the relative based on `index` and given `range`.
   void Function(int)? _onIndexChangedMethodFactory(int range) {
     return (int index) {
-      _controller._update(index);
-      widget.onIndexChanged?.call(index % range, _controller._interactionType);
+      _controller?._update(index);
+
+      final interactionType = _controller?._interactionType ?? WheelPickerController._defaultInteractionType;
+      final changedIndex = index % range;
+      widget.onIndexChanged?.call(changedIndex, interactionType);
     };
   }
 
@@ -220,7 +230,7 @@ class _WheelPickerState extends State<WheelPicker> {
           child: widget.builder(context, index % range),
         ),
       ),
-      controller: _controller._scrollController,
+      controller: _controller?._scrollController,
       onSelectedItemChanged: _onIndexChangedMethodFactory(range),
       physics: const FixedExtentScrollPhysics(),
       diameterRatio: widget.style.diameterRatio,
@@ -234,7 +244,7 @@ class _WheelPickerState extends State<WheelPicker> {
   Widget _nonLoopingWheel(BuildContext context, int range) {
     return ListWheelScrollView(
       itemExtent: widget.style.itemExtent,
-      controller: _controller._scrollController,
+      controller: _controller?._scrollController,
       onSelectedItemChanged: _onIndexChangedMethodFactory(range),
       physics: const FixedExtentScrollPhysics(),
       diameterRatio: widget.style.diameterRatio,
@@ -292,12 +302,12 @@ class _WheelPickerState extends State<WheelPicker> {
 
                   if (normalizedLocation.abs() >= offCenterRatio) {
                     normalizedLocation > 0
-                        ? _controller._interactionShiftDown(WheelPickerInteractionType.tap)
-                        : _controller._interactionShiftUp(WheelPickerInteractionType.tap);
+                        ? _controller?._interactionShiftDown(WheelPickerInteractionType.tap)
+                        : _controller?._interactionShiftUp(WheelPickerInteractionType.tap);
                   }
                 }
               : null,
-          onPanDown: (details) => _controller._setInteractionType(WheelPickerInteractionType.drag),
+          onPanDown: (details) => _controller?._setInteractionType(WheelPickerInteractionType.drag),
           child: wheel,
         );
       },

@@ -148,7 +148,7 @@ class _WheelPickerState extends State<WheelPicker> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final initialIndex = widget.initialIndex ?? _controller.initialIndex;
       if (initialIndex > 0) {
-        await _controller.setCurrent(initialIndex);
+        await _controller.shiftTo(initialIndex);
       }
     });
 
